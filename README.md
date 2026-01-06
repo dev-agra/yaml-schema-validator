@@ -1,182 +1,167 @@
-# YAML schema validator
+# YAML Schema Validator
 
-## Context
+A multi-phase YAML schema validator for GroundX prompt/config files with line numbers, suggestions, and extensible rules.
 
-We need a user-facing YAML schema validator that can validate our prompt/config YAML files before they're used. The validator must be strict about indentation/layout, load into our Pydantic models, and then apply additional semantic rules with clear, actionable feedback. After core validation, we also need a configurable mechanism to layer on custom validations for specific YAML "profiles" (e.g., a "statement-only" schema).
+## Features
 
-## YAML Structure Being Validated
+- **4-Phase Validation:** Parse → Load → Core Rules → Profile Rules
+- **Line Numbers:** Every error shows exact location
+- **Suggestions:** Actionable fix recommendations
+- **Profiles:** Domain-specific rule sets
+- **Multiple Outputs:** Text or JSON format
 
-Top-level YAML must be:
-- `Dict[str, Group]` (each top-level key maps to a `Group`)
+## Installation
 
-[`Group` is our Pydantic class](https://github.com/eyelevelai/groundx-python/blob/main/src/groundx/extract/classes/group.py) from the [groundx Python Library](https://github.com/eyelevelai/groundx-python).
+```bash
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
 
-In the YAML, `groundx.extract.classes.group.Group` may have:
-- (optional) [`prompt`](https://github.com/eyelevelai/groundx-python/blob/main/src/groundx/extract/classes/prompt.py)
-- (optional) `fields`
+# Install
+pip install -e .
+```
 
-`Group.fields` contains [`ExtractedField` instances](https://github.com/eyelevelai/groundx-python/blob/main/src/groundx/extract/classes/field.py).
+## CLI Usage
 
-For this validator, we enforce the schema rules described in the next section.
+```bash
+# Basic validation
+yaml-validate config.yaml
 
-## Core Validation
+# With profile
+yaml-validate config.yaml --profile statement_only
 
-1. Validate indentation/layout first (before semantic validation)
-- The very first step must validate YAML indentation and layout.
-- If indentation/layout is invalid:
-  - Return an error referencing the first line that violates indentation/layout.
-  - Provide the line number and a clear fix suggestion (e.g., "unexpected indent", "tab used", "mapping value not allowed here", etc.).
+# JSON output
+yaml-validate config.yaml --format json
 
-Notes/expectations
-- YAML indentation errors often come from parser exceptions. We want the earliest failure with line number.
-- Prefer a YAML loader that can preserve line numbers and give helpful parse errors.
+# List profiles
+yaml-validate --list-profiles
+```
 
-2. Load YAML into `Dict[str, Group]`
-- After indentation/layout passes, load YAML into `Dict[str, Group]`.
-- `Group` and `ExtractedField` Pydantic validation handles basic typing/shape errors.
-- Any Pydantic validation errors must be surfaced cleanly:
-  - include the path (top-level key / field key)
-  - include a human readable message
+### Exit Codes
 
-3. Apply core semantic rules (post-load)
+| Code | Meaning |
+| ---- | ------- |
+| `0`  | Passed  |
+| `1`  | Failed  |
+| `2`  | Error   |
 
-After successfully loading into Pydantic models, enforce the following additional rules:
+## Python API
 
-**`Group` rules**
-- A `Group` may or may not have a `prompt`.
-- If `Group.prompt` is present:
-  - it must have `instructions` (non-empty).
-  - other `prompt` attributes (`attr_name`, `default`, `description`, `format`, `identifiers`, `type`, `required`) are ignored for `Group` prompts.
-  - if any of those other attributes are populated, emit a warning (not failure) that they are ignored.
+```python
+from src import validate_yaml_schema
 
-**`ExtractedField` rules**
-For each field in `Group.fields` that is an `ExtractedField`:
-- Must have `prompt`.
-- `prompt.identifiers` must exist and contain at least 1 string.
-- `prompt.type` must exist.
-- Optional-but-used (allowed, no warning): `attr_name`, `default`, `description`, `format`.
-- `prompt.required` is not used:
-  - if populated (true/false explicitly set), emit a warning that it's ignored.
+result = validate_yaml_schema(yaml_text, profile="statement_only")
 
-**Feedback format**
-For any violation, output must be clear and actionable, referencing:
-- the top-level dict key (group name) (e.g., "statement")
-- the field key (attribute name) when relevant (e.g., "statement_date")
-- what is wrong and how to fix it
+if result.success:
+    print("Valid!")
+else:
+    for error in result.errors:
+        print(f"Line {error.line}: [{error.code}] {error.message}")
+```
 
-Also:
-- If the YAML indentation/layout is invalid, include line number.
-- If the YAML loads but semantic checks fail, include:
-- group key and/or field key
-- prompt attribute name
-- (line number is "nice to have" if we can map it; not required unless indentation/layout invalid)
+## Error Codes
 
-## Custom Validation (Configurable Rule Sets)
+| Range     | Category      | Examples                     |
+| --------- | ------------- | ---------------------------- |
+| `001-009` | Parse         | Tabs, syntax errors          |
+| `010-099` | Load          | Unknown fields, wrong types  |
+| `100-149` | Core Errors   | Missing identifiers, type    |
+| `150-199` | Core Warnings | Ignored attributes           |
+| `200-299` | Profile       | Invalid keys, missing fields |
 
-After core validation is implemented, add a mechanism to selectively apply additional rule sets ("profiles") on top of core rules.
+### Key Errors
 
-### Example custom profile to implement (as demonstration)
+| Code       | Description                      |
+| ---------- | -------------------------------- |
+| `GXVAL003` | Tab character found              |
+| `GXVAL011` | Unknown field                    |
+| `GXVAL104` | Missing identifiers              |
+| `GXVAL105` | Missing type                     |
+| `GXVAL203` | Missing required field (profile) |
 
-Create a custom configuration/profile demonstrating these rules:
+## Adding Custom Rules
 
-**Top-level rules**
-- Only one allowed top-level key: `statement`
-- i.e. required keys = {statement} and no other keys allowed
+```python
+# src/rules/core_rules.py
 
-**`statement` group rules**
-- `statement.fields` must be a `Dict[str, ExtractedField]` (i.e., no list, no nested groups, etc. — only extracted fields)
-- Within `statement.fields`, the keys `meters` and `charges` must exist
+class MyRule(Rule):
+    @property
+    def id(self) -> str:
+        return "GXVAL109"
 
-These custom rules must:
-- run after core validation
-- be optional (enabled via config / profile selection)
-- produce the same style of actionable errors (and ideally warnings)
+    @property
+    def description(self) -> str:
+        return "What this rule checks"
 
-## Suggested Implementation Approach
+    def validate(self, model: YAMLSchema, line_map: Dict[str, int]) -> List[ValidationIssue]:
+        issues = []
+        for group_name, group in model.items():
+            if some_condition_fails:
+                issues.append(create_error(
+                    code=self.id,
+                    message="Error message",
+                    path=[group_name, "..."],
+                    line=get_line_for_path(line_map, [...]),
+                    suggestion="How to fix"
+                ))
+        return issues
 
-### Validator pipeline
+# Add to CORE_RULES list
+CORE_RULES = [..., MyRule]
+```
 
-Implement a pipeline with explicit phases:
-1. Parse/indentation phase
-- Parse YAML and fail fast on indentation/layout issues with line number.
-2. Model load phase
-- Convert parsed YAML -> Dict[str, Group] via Pydantic.
-3. Core semantic phase
-- Run core semantic rules described above.
-4. Custom rule phase
-- Run selected custom rule sets ("profiles").
+## Adding Custom Profiles
 
-### Rule engine / plugin model (for custom validations)
+Create `src/profiles/configs/my_profile.yaml`:
 
-Implement a small "rule" interface and registry:
-- `ValidationIssue`:
-  - `severity`: "error" | "warning"
-  - `message`: string
-  - `path`: list/tuple (e.g. ["statement", "fields", "meters", "prompt", "type"])
-  - `line`: optional int (when available)
-  - `code`: optional stable identifier (e.g. GXVAL001)
-- Rule interface:
-  - `id`, `description`, `applies_to` (core vs profile)
-  - `validate(model, raw_yaml_meta) -> list[ValidationIssue]`
-- Validator:
-  - runs `core_rules` always
-  - runs `profile_rules[profile_name]` when chosen
-  - returns a list of issues; if any error, validation fails
-- Profile config:
-  - can be a small Python dict/class or YAML/JSON file that declares:
-    - required top-level keys
-    - allowed top-level keys
-    - per-group field constraints
-    - required field keys under a specific group
-  - The example "statement-only" profile should be implemented using this mechanism (not hardcoded).
+```yaml
+name: my_profile
+description: "My custom profile"
+version: "1.0.0"
 
-This keeps us from hardcoding Arcadia/other customer schemas in the library logic.
+rules:
+  top_level:
+    required: [my_group]
+    allowed: [my_group]
 
-## Deliverables
+  groups:
+    my_group:
+      fields:
+        required: [field1, field2]
+```
 
-1. A validator entrypoint function, e.g.:
-- validate_yaml_schema(yaml_text: str, profile: Optional[str] = None) -> ValidationResult
-2. CLI helper or callable utility (either is fine) that prints issues clearly
-3. Core rules + warnings implemented as described
-4. Pluggable custom profile mechanism + one demo profile:
-- profile name suggestion: "statement_only"
-5. Unit tests covering:
-- indentation failure with correct first-line reporting
-- Pydantic load errors are readable and correctly located by group/field key
-- each core rule violation produces expected issue format
-- profile rules work and are optional
+Use it:
 
-## Acceptance Criteria
+```bash
+yaml-validate config.yaml --profile my_profile
+```
 
-- Indentation/layout invalid YAML fails with:
-  - first violating line number
-  - actionable message
-- Valid indentation but invalid schema fails with:
-  - group key / field key and exact missing/invalid attribute(s)
-- Group prompt rules enforced:
-  - missing instructions => error
-  - extra group prompt attrs => warnings
-- Field prompt rules enforced:
-  - missing prompt / identifiers / type => error
-  - required populated => warning
-- Custom profile support:
-  - core validation always runs
-  - profile validation runs only when selected
-  - demo profile "statement_only" works:
-    - only top-level key statement
-    - statement.fields must be dict of fields
-    - meters and charges required
+## Project Structure
 
-## Notes / Constraints
+```
+yaml-schema-validator/
+├── main.py                 # CLI entry point
+├── pyproject.toml
+├── src/
+│   ├── validator.py        # Main orchestrator
+│   ├── core/               # Models, exceptions
+│   ├── parser/             # YAML parsing
+│   ├── loader/             # Pydantic loading
+│   ├── rules/              # Validation rules
+│   └── profiles/           # Profile configs
+├── tests/
+└── examples/
+```
 
-- We already have dynamic field inflation in Group._inflate_fields; validator must be compatible with that behavior.
-- Prefer producing a structured result that can be shown in CLI/UI later (not just raising a raw exception).
+## Testing
 
-## Implementation Checklist
+```bash
+pytest                      # Run all
+pytest -v                   # Verbose
+pytest --cov=src            # With coverage
+```
 
-- Choose YAML parser approach that provides parse errors with line numbers (indentation/layout phase)
-- Implement ValidationIssue + ValidationResult
-- Implement core validation rules
-- Implement rule engine + profile selection mechanism
-- Add "statement_only" profile using the new mechanism
-- Add comprehensive unit tests for the above
+## License
+
+MIT

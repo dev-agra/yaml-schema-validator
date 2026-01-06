@@ -1,0 +1,7 @@
+# Example: Invalid - contains tabs
+statement:
+	fields:
+		amount:
+			prompt:
+				identifiers: ["amount"]
+				type: str

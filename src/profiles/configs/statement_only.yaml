@@ -1,0 +1,28 @@
+# Profile: statement_only
+# 
+# This profile validates YAML schemas for utility statement extraction.
+# It enforces specific constraints on the schema structure.
+
+name: statement_only
+description: "Validates utility statement extraction schemas"
+version: "1.0.0"
+
+rules:
+  # Top-level key constraints
+  top_level:
+    required:
+      - statement
+    allowed:
+      - statement
+  
+  # Group-specific constraints
+  groups:
+    statement:
+      # Fields must be a dictionary of ExtractedFields
+      fields:
+        type: dict
+        
+        # Required fields (customize as needed)
+        required:
+          - meters
+          - charges

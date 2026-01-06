@@ -1,0 +1,31 @@
+statement:
+  prompt:
+    instructions: "Extract utility statement data"
+  
+  fields:
+    account_number:
+      prompt:
+        identifiers:
+          - "Account Number"
+          - "Account #"
+          - "Acct Num"
+        type: str
+        description: "The customer's account identifier"
+    
+    meters:
+      prompt:
+        identifiers:
+          - "Meter Number"
+          - "Meter #"
+          - "Meter ID"
+        type: str
+        description: "Utility meter identifier"
+    
+    charges:
+      prompt:
+        identifiers:
+          - "Total Charges"
+          - "Amount Due"
+          - "Total Amount"
+        type: ["int", "float"]
+        description: "The total amount owed"

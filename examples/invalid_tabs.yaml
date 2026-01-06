@@ -1,0 +1,10 @@
+statement:
+  prompt:
+    instructions: "Extract data"
+
+  fields:
+    statement_date: # ERROR: Wrong indentation (3 spaces instead of 4)
+      prompt:
+        identifiers:
+          - "date"
+        type: "date"
