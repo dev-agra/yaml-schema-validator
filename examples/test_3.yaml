@@ -1,0 +1,10 @@
+statement:
+  fields:
+    account_number:
+      prompt:
+        description: unique identifier for the customer account
+        format: unique string, **always** formatted as a string
+        identifiers: ["Account ID"]
+        instructions: |
+          - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE IDENTIFIER**
+        type: str

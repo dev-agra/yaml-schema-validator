@@ -1,0 +1,75 @@
+# GitHub Actions workflow for YAML validation
+# Copy this to .github/workflows/validate-yaml.yml
+
+name: Validate YAML Schemas
+
+on:
+  push:
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+  pull_request:
+    paths:
+      - '**/*.yaml'
+      - '**/*.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install validator
+        run: |
+          pip install pydantic ruamel.yaml pyyaml rich
+          pip install -e .
+      
+      - name: Validate YAML files
+        run: |
+          # Find and validate all YAML files
+          find . -name "*.yaml" -o -name "*.yml" | while read file; do
+            echo "Validating: $file"
+            yaml-validate "$file" --format text || exit 1
+          done
+      
+      - name: Validate with profile (optional)
+        run: |
+          # Validate specific files with profile
+          if [ -f "config.yaml" ]; then
+            yaml-validate config.yaml --profile statement_only
+          fi
+        continue-on-error: true
+
+  report:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: failure()
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install validator
+        run: |
+          pip install pydantic ruamel.yaml pyyaml rich
+          pip install -e .
+      
+      - name: Generate report
+        run: |
+          yaml-validate config.yaml --report validation-report.html || true
+      
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-report
+          path: validation-report.html

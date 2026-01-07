@@ -1,0 +1,28 @@
+# Pre-commit hook configuration
+# Add this to your .pre-commit-config.yaml:
+#
+# repos:
+#   - repo: https://github.com/your-org/yaml-schema-validator
+#     rev: v0.1.0
+#     hooks:
+#       - id: yaml-validate
+#         args: ['--profile', 'statement_only']
+#         files: \.yaml$
+
+- id: yaml-validate
+  name: Validate YAML Schema
+  description: Validate YAML configuration files
+  entry: yaml-validate
+  language: python
+  files: \.yaml$
+  types: [yaml]
+  args: []
+
+- id: yaml-validate-strict
+  name: Validate YAML Schema (Strict)
+  description: Validate YAML with statement_only profile
+  entry: yaml-validate
+  language: python
+  files: \.yaml$
+  types: [yaml]
+  args: ["--profile", "statement_only"]

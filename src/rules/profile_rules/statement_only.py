@@ -4,33 +4,27 @@ Profile rules for the 'statement_only' validation profile.
 This profile enforces:
 1. Only 'statement' is allowed at the top level
 2. statement.fields must be a dict of ExtractedFields
-3. Required fields: meters, charges (configurable)
+3. Required fields: meters, charges
 """
 
 from __future__ import annotations
 
 from typing import List, Dict, Set
 
-from ...core.models import (
+from src.core.models import (
     ValidationIssue,
     Severity,
     ErrorCodes,
     create_error,
     create_warning,
 )
-from ...loader.schema_models import YAMLSchema
-from ..base import Rule, RuleRegistry
-from ...parser.yaml_parser import get_line_for_path
+from src.loader.schema_models import YAMLSchema
+from src.rules.base import Rule, RuleRegistry
+from src.parser.yaml_parser import get_line_for_path
 
 
 class TopLevelKeysRule(Rule):
-    """
-    Validates that only allowed keys exist at the top level.
-    
-    For statement_only profile:
-    - Required: ['statement']
-    - Allowed: ['statement']
-    """
+    """Validates that only allowed keys exist at the top level."""
     
     def __init__(
         self,
@@ -87,9 +81,7 @@ class TopLevelKeysRule(Rule):
 
 
 class RequiredFieldsRule(Rule):
-    """
-    Validates that required fields exist within a group.
-    """
+    """Validates that required fields exist within a group."""
     
     def __init__(
         self,
@@ -120,7 +112,6 @@ class RequiredFieldsRule(Rule):
         
         group = model.get(self._group_name)
         if group is None:
-            # Another rule handles missing group
             return issues
         
         if group.fields is None:
@@ -149,11 +140,7 @@ class RequiredFieldsRule(Rule):
 
 
 class FieldsDictTypeRule(Rule):
-    """
-    Validates that fields is a dictionary (not a list or other type).
-    
-    This is usually caught by Pydantic, but we include it for completeness.
-    """
+    """Validates that fields is a dictionary."""
     
     def __init__(self, group_name: str = "statement"):
         self._group_name = group_name
@@ -181,7 +168,6 @@ class FieldsDictTypeRule(Rule):
         if group is None:
             return issues
         
-        # If we got here with a valid model, fields is already a dict
         if group.fields is not None and not isinstance(group.fields, dict):
             issues.append(create_error(
                 code=self.id,
@@ -192,10 +178,6 @@ class FieldsDictTypeRule(Rule):
         
         return issues
 
-
-# ============================================================================
-# Profile Configuration
-# ============================================================================
 
 # Default configuration for statement_only profile
 STATEMENT_ONLY_CONFIG = {
@@ -209,13 +191,7 @@ def register_statement_only_rules(
     registry: RuleRegistry,
     config: Dict = None
 ) -> None:
-    """
-    Register rules for the 'statement_only' profile.
-    
-    Args:
-        registry: The RuleRegistry to register rules with
-        config: Optional configuration override
-    """
+    """Register rules for the 'statement_only' profile."""
     cfg = {**STATEMENT_ONLY_CONFIG, **(config or {})}
     
     registry.register_profile("statement_only", TopLevelKeysRule(
@@ -234,20 +210,11 @@ def register_statement_only_rules(
 
 
 def get_profile_rules(profile_name: str) -> List[Rule]:
-    """
-    Get rule instances for a profile.
-    
-    Args:
-        profile_name: Name of the profile
-    
-    Returns:
-        List of Rule instances
-    """
+    """Get rule instances for a profile."""
     if profile_name == "statement_only":
         return [
             TopLevelKeysRule(),
             RequiredFieldsRule(),
             FieldsDictTypeRule(),
         ]
-    
     return []

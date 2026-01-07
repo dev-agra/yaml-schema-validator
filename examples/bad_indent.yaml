@@ -1,0 +1,10 @@
+statement:
+  prompt:
+    instructions: "Extract data"
+
+  fields:
+   statement_date:
+      prompt:
+        identifiers:
+          - "date"
+        type: "date"

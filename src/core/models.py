@@ -1,8 +1,5 @@
 """
 Core data models for the YAML schema validator.
-
-This module contains the fundamental data structures used throughout
-the validation pipeline.
 """
 
 from __future__ import annotations
@@ -17,65 +14,83 @@ class Severity(str, Enum):
     """Severity levels for validation issues."""
     ERROR = "error"
     WARNING = "warning"
+    INFO = "info"
 
 
 class ErrorCodes:
     """
-    Constants for validation error codes.
-    
-    Ranges:
-    - 001-099: Parse/load errors
-    - 100-199: Core semantic rule errors/warnings
-    - 200-299: Profile rule errors/warnings
+    Error code ranges:
+    - 0xx: Parse/syntax errors (YAML level)
+    - 1xx: Load/structure errors (Pydantic level)  
+    - 2xx: Core semantic rule errors
+    - 3xx: Core semantic rule warnings
+    - 4xx: Profile rule errors
+    - 5xx: Profile rule warnings
     """
     
-    # Parse errors (001-009)
+    # Parse errors (0xx) - YAML syntax level
     YAML_PARSE_ERROR = "GXVAL001"
     YAML_INDENT_ERROR = "GXVAL002"
     YAML_TAB_ERROR = "GXVAL003"
     YAML_MAPPING_ERROR = "GXVAL004"
+    YAML_EMPTY_ERROR = "GXVAL005"
     
-    # Pydantic/Load errors (010-099)
-    PYDANTIC_VALIDATION_ERROR = "GXVAL010"
-    UNKNOWN_FIELD_ERROR = "GXVAL011"
-    TYPE_ERROR = "GXVAL012"
-    STRUCTURE_ERROR = "GXVAL013"
+    # Load/structure errors (1xx) - Pydantic level
+    PYDANTIC_VALIDATION_ERROR = "GXVAL101"
+    UNKNOWN_FIELD_ERROR = "GXVAL102"
+    TYPE_ERROR = "GXVAL103"
+    STRUCTURE_ERROR = "GXVAL104"
     
-    # Core semantic rules - Errors (100-149)
-    GROUP_PROMPT_NO_INSTRUCTIONS = "GXVAL101"
-    FIELD_NO_PROMPT = "GXVAL103"
-    FIELD_NO_IDENTIFIERS = "GXVAL104"
-    FIELD_NO_TYPE = "GXVAL105"
-    FIELD_EMPTY_IDENTIFIERS = "GXVAL107"
+    # Core semantic rule errors (2xx)
+    GROUP_PROMPT_NO_INSTRUCTIONS = "GXVAL201"
+    FIELD_NO_PROMPT = "GXVAL202"
+    FIELD_NO_IDENTIFIERS = "GXVAL203"
+    FIELD_EMPTY_IDENTIFIERS = "GXVAL204"
+    FIELD_NO_TYPE = "GXVAL205"
     
-    # Core semantic rules - Warnings (150-199)
-    GROUP_PROMPT_IGNORED_ATTRS = "GXVAL102"
-    FIELD_REQUIRED_IGNORED = "GXVAL106"
-    UNKNOWN_TYPE_VALUE = "GXVAL108"
+    # Core semantic rule warnings (3xx)
+    GROUP_PROMPT_IGNORED_ATTRS = "GXVAL301"
+    FIELD_REQUIRED_IGNORED = "GXVAL302"
     
-    # Profile rules - Errors (200-249)
-    PROFILE_INVALID_TOP_LEVEL_KEY = "GXVAL201"
-    PROFILE_MISSING_REQUIRED_KEY = "GXVAL202"
-    PROFILE_MISSING_REQUIRED_FIELD = "GXVAL203"
-    PROFILE_INVALID_FIELDS_TYPE = "GXVAL204"
+    # Profile rule errors (4xx)
+    PROFILE_INVALID_TOP_LEVEL_KEY = "GXVAL401"
+    PROFILE_MISSING_REQUIRED_KEY = "GXVAL402"
+    PROFILE_MISSING_REQUIRED_FIELD = "GXVAL403"
+    PROFILE_INVALID_FIELDS_TYPE = "GXVAL404"
     
-    # Profile rules - Warnings (250-299)
-    PROFILE_EXTRA_FIELD = "GXVAL250"
+    # Profile rule warnings (5xx)
+    PROFILE_EXTRA_FIELD = "GXVAL501"
+
+
+# Mapping for error code descriptions (for --list-rules)
+ERROR_CODE_DESCRIPTIONS = {
+    "GXVAL001": "Generic YAML parse error",
+    "GXVAL002": "YAML indentation error",
+    "GXVAL003": "Tab character found (use spaces)",
+    "GXVAL004": "Invalid YAML mapping syntax",
+    "GXVAL005": "YAML file is empty",
+    "GXVAL101": "Pydantic validation failed",
+    "GXVAL102": "Unknown field not in schema",
+    "GXVAL103": "Wrong type for field",
+    "GXVAL104": "Invalid structure (expected dict)",
+    "GXVAL201": "Group.prompt missing instructions",
+    "GXVAL202": "Field missing prompt",
+    "GXVAL203": "Field missing identifiers",
+    "GXVAL204": "Field has empty identifiers list",
+    "GXVAL205": "Field missing type",
+    "GXVAL301": "Group.prompt has ignored attributes",
+    "GXVAL302": "Field.prompt.required is ignored",
+    "GXVAL401": "Invalid top-level key for profile",
+    "GXVAL402": "Missing required top-level key",
+    "GXVAL403": "Missing required field in group",
+    "GXVAL404": "Fields must be a dictionary",
+    "GXVAL501": "Extra field not in profile allowlist",
+}
 
 
 @dataclass
 class ValidationIssue:
-    """
-    Represents a single validation issue (error or warning).
-    
-    Attributes:
-        severity: Whether this is an error or warning
-        code: Stable error code (e.g., "GXVAL001")
-        message: Human-readable description of the issue
-        path: Location in the YAML structure (e.g., ["statement", "fields", "meters"])
-        line: Line number where the issue occurs (if available)
-        suggestion: Optional fix suggestion
-    """
+    """Represents a single validation issue."""
     severity: Severity
     code: str
     message: str
@@ -84,7 +99,6 @@ class ValidationIssue:
     suggestion: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization."""
         return {
             "severity": self.severity.value,
             "code": self.code,
@@ -95,88 +109,61 @@ class ValidationIssue:
         }
     
     def format_path(self) -> str:
-        """Format path as dot-notation string."""
         return ".".join(self.path) if self.path else "(root)"
     
     def __str__(self) -> str:
-        """Human-readable string representation."""
         line_info = f" (line {self.line})" if self.line else ""
         path_str = self.format_path()
         base = f"[{self.code}] {path_str}{line_info}: {self.message}"
         if self.suggestion:
-            base += f"\n    → Suggestion: {self.suggestion}"
+            base += f"\n    → {self.suggestion}"
         return base
 
 
 @dataclass
 class ValidationResult:
-    """
-    Complete result of a validation run.
-    
-    Attributes:
-        success: True if no errors (warnings are OK)
-        errors: List of error-level issues
-        warnings: List of warning-level issues
-    """
+    """Complete result of a validation run."""
     success: bool
     errors: List[ValidationIssue] = field(default_factory=list)
     warnings: List[ValidationIssue] = field(default_factory=list)
+    parse_time_ms: Optional[float] = None
+    load_time_ms: Optional[float] = None
+    rules_time_ms: Optional[float] = None
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization."""
         return {
             "success": self.success,
             "error_count": len(self.errors),
             "warning_count": len(self.warnings),
             "errors": [e.to_dict() for e in self.errors],
-            "warnings": [w.to_dict() for w in self.warnings]
+            "warnings": [w.to_dict() for w in self.warnings],
+            "timing": {
+                "parse_ms": self.parse_time_ms,
+                "load_ms": self.load_time_ms,
+                "rules_ms": self.rules_time_ms,
+            }
         }
     
     def to_json(self, indent: int = 2) -> str:
-        """Convert to JSON string."""
         return json.dumps(self.to_dict(), indent=indent)
     
     @property
     def error_count(self) -> int:
-        """Number of errors."""
         return len(self.errors)
     
     @property
     def warning_count(self) -> int:
-        """Number of warnings."""
         return len(self.warnings)
-    
-    @property
-    def total_issues(self) -> int:
-        """Total number of issues (errors + warnings)."""
-        return self.error_count + self.warning_count
-    
-    def __str__(self) -> str:
-        """Human-readable summary."""
-        status = "✅ PASSED" if self.success else "❌ FAILED"
-        return f"{status} - {self.error_count} error(s), {self.warning_count} warning(s)"
 
 
 @dataclass
 class ParseResult:
-    """
-    Result of YAML parsing phase.
-    
-    Attributes:
-        success: True if parsing succeeded
-        data: Parsed YAML as dictionary (if successful)
-        line_map: Mapping of key paths to line numbers
-        error: ValidationIssue if parsing failed
-    """
+    """Result of YAML parsing phase."""
     success: bool
     data: Optional[Dict[str, Any]] = None
     line_map: Dict[str, int] = field(default_factory=dict)
     error: Optional[ValidationIssue] = None
 
-
-# ============================================================================
-# Factory Functions
-# ============================================================================
 
 def create_error(
     code: str,
@@ -185,7 +172,6 @@ def create_error(
     line: Optional[int] = None,
     suggestion: Optional[str] = None
 ) -> ValidationIssue:
-    """Create an error-level validation issue."""
     return ValidationIssue(
         severity=Severity.ERROR,
         code=code,
@@ -203,7 +189,6 @@ def create_warning(
     line: Optional[int] = None,
     suggestion: Optional[str] = None
 ) -> ValidationIssue:
-    """Create a warning-level validation issue."""
     return ValidationIssue(
         severity=Severity.WARNING,
         code=code,

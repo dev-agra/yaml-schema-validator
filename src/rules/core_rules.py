@@ -9,24 +9,20 @@ from __future__ import annotations
 
 from typing import List, Dict
 
-from ..core.models import (
+from src.core.models import (
     ValidationIssue,
     Severity,
     ErrorCodes,
     create_error,
     create_warning,
 )
-from ..loader.schema_models import YAMLSchema
-from .base import Rule, RuleRegistry
-from ..parser.yaml_parser import get_line_for_path
+from src.loader.schema_models import YAMLSchema
+from src.rules.base import Rule, RuleRegistry
+from src.parser.yaml_parser import get_line_for_path
 
 
 class GroupPromptInstructionsRule(Rule):
-    """
-    Validates that if a Group has a prompt, it must have instructions.
-    
-    Group.prompt is optional, but if present, instructions must be non-empty.
-    """
+    """If Group.prompt is present, it must have non-empty instructions."""
     
     @property
     def id(self) -> str:
@@ -61,12 +57,7 @@ class GroupPromptInstructionsRule(Rule):
 
 
 class GroupPromptIgnoredAttrsRule(Rule):
-    """
-    Warns if Group.prompt has attributes that are ignored for groups.
-    
-    These attributes are only meaningful for ExtractedField prompts:
-    - identifiers, type, attr_name, default, description, format, required
-    """
+    """Warn if Group.prompt has attributes that are ignored for groups."""
     
     @property
     def id(self) -> str:
@@ -107,9 +98,7 @@ class GroupPromptIgnoredAttrsRule(Rule):
 
 
 class FieldPromptRequiredRule(Rule):
-    """
-    Validates that every ExtractedField has a prompt.
-    """
+    """Every ExtractedField must have a prompt."""
     
     @property
     def id(self) -> str:
@@ -145,9 +134,7 @@ class FieldPromptRequiredRule(Rule):
 
 
 class FieldIdentifiersRequiredRule(Rule):
-    """
-    Validates that every field's prompt has identifiers with at least one item.
-    """
+    """Field.prompt.identifiers must exist and have at least one item."""
     
     @property
     def id(self) -> str:
@@ -195,9 +182,7 @@ class FieldIdentifiersRequiredRule(Rule):
 
 
 class FieldTypeRequiredRule(Rule):
-    """
-    Validates that every field's prompt has a type.
-    """
+    """Field.prompt.type must exist."""
     
     @property
     def id(self) -> str:
@@ -234,9 +219,7 @@ class FieldTypeRequiredRule(Rule):
 
 
 class FieldRequiredIgnoredRule(Rule):
-    """
-    Warns if field.prompt.required is set, as it's ignored.
-    """
+    """Warn if field.prompt.required is set, as it's ignored."""
     
     @property
     def id(self) -> str:
@@ -275,10 +258,6 @@ class FieldRequiredIgnoredRule(Rule):
         return issues
 
 
-# ============================================================================
-# Registration
-# ============================================================================
-
 # List of all core rule classes
 CORE_RULES = [
     GroupPromptInstructionsRule,
@@ -291,26 +270,13 @@ CORE_RULES = [
 
 
 def register_core_rules(registry: RuleRegistry) -> None:
-    """
-    Register all core rules with the given registry.
-    
-    Args:
-        registry: The RuleRegistry to register rules with
-    """
+    """Register all core rules with the given registry."""
     for rule_class in CORE_RULES:
         registry.register_core(rule_class())
 
 
 def get_core_rule_by_id(rule_id: str) -> Rule | None:
-    """
-    Get a core rule instance by its ID.
-    
-    Args:
-        rule_id: The rule ID (e.g., "GXVAL101")
-    
-    Returns:
-        Rule instance if found, None otherwise
-    """
+    """Get a core rule instance by its ID."""
     for rule_class in CORE_RULES:
         instance = rule_class()
         if instance.id == rule_id:

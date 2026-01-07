@@ -1,0 +1,668 @@
+statement:
+  fields:
+    account_number:
+      prompt:
+        description: unique identifier for the customer account and, when both customer number and account number are present, refers to the account number and **not** the customer number
+        format: unique string, **always** formatted as a string
+        identifiers: ["Account ID", "CID", "Acct Num", "Account #", "Customer Number", "Cust #", "Customer ID"]
+        instructions: |
+          - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE IDENTIFIER**
+            - Account Number is **never** missing a label
+          - If the **label** contains a hyphen **in the label** such as "Customer - Account Number" or "Barcode - Account Number" or "Account # - CID", **split the identifier** at the appropriate hyphen and **use the Account Number portion only**
+            - Use the label as the guide on where to split and which parts correspond with which
+          - **Do not split** the account number if the **label is not hyphenated**
+          - **Invalid labels** include:
+            - Utility Number
+            - "Statement Number" or anything like that
+          - If you **find both** an account number and a customer number, **only use the account number**
+          - If you **only** find a customer number, **use the customer number**
+          - If you find multiple account numbers, use the one that is most closely related to the utility provider
+          - Use your best judgement to **capture the entire value**
+            - Some account numbers include hyphens, periods, or spaces. Be sure to capture the entire identifier including hyphens, periods, and spaces.
+            - It **may run into neighboring values** such as dates
+            - It **may cross the borders of the box** it is in
+            - **Neighboring values may cross into its box**
+        type: str
+    pass_through_provider_account_number:
+      prompt:
+        description: unique identifier for the customer account with the additional provider
+        format: unique string, **always** formatted as a string
+        identifiers: ["Account ID"]
+        instructions: |
+          - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE IDENTIFIER**
+          - The label will **never** be "ESI Number" or "Utility Number" or "Statement Number" or anything like that
+          - Use your best judgement to **capture the entire value**
+            - Some account numbers include hyphens, periods, or spaces. Be sure to capture the entire identifier including hyphens, periods, and spaces.
+        type: str
+    pass_through_provider_name:
+      prompt:
+        description: other utility service providers associated with utility service charges (e.g. passthrough fees, usage under the primary meter, or other "pass through" services and charges)
+        identifiers: ["Passthrough Fees", "Associated Charges", "Supporting Services", "You are buying your service from", "Delivery", "Supply"]
+        instructions: |
+          - Additional service providers, sometimes called passthrough service providers, will typically appear in the invoice section of the bill
+            - The provider reference could be a line item, or in the description or heading
+          - These additional providers are likely to be associated with **electricity** or **natural gas** or **both** services
+          - These additional providers will **not** be the utility company that issued the statement or invoice
+        type: str
+    amount_due:
+      prompt:
+        description: numerical value representing the amount that the customer owes
+        identifiers: ["Now Due", "Balance", "Total Amount Due"]
+        instructions: |
+          - Do not confuse this with the late amount due, which will be indicated by "Amount After XX Date" or some similar language
+          - If there is a "Total Amount" or "Total Due" or some similar descriptor, use this value
+        type: ["int", "float"]
+    amount_due_currency:
+      prompt:
+        description: currency for the payment amount
+        format: enumerated value **OR** ISO 4217 code, formatted as a string
+        identifiers: ["$", "AUD", "USD"]
+        instructions: |
+          - Use the following parts of the invoice to help you determine this value:
+            - Charges and fees, the language of the text, addresses, provider names (e.g. `Fastenal Canada`), or references to country names in the text
+          - If you find conflicting information, follow the following priority (assuming you've found these things):
+            1. Explict descriptions of the currency (e.g. in the charges and fees or the main bill text)
+            2. Customer address
+            3. Address where payment is submitted
+            4. Provider name or address
+            5. Other addresses
+            6. Other references to locations in the text
+
+          ### Amount Due Currency - Enumerated Values
+
+          If you identify one of the following currencies, use the corresponding enumerated value:
+
+          - Australian Dollars (AUD) --> currency_australian_dollars
+          - Singaporean Dollars (SGD) --> currency_singapore_dollars
+          - Canadian Dollars (CAD) --> currency_canadian_dollars
+          - New Zealand Dollars (NZD) --> currency_new_zealand_dollars
+          - United States Dollars (USD) --> currency_dollars
+          - Euros (EUR) --> currency_euros
+          - Pound Sterling (GBP) --> currency_pounds
+          - Swiss Francs (CHF) --> currency_swiss_franc
+          - Indian Rupees (INR) --> currency_indian_rupees
+          - Chinese Yuan (CNY) --> currency_chinese_yuan
+          - Japanese Yen (JPY) --> currency_japanese_yen
+
+          If you **do not** identify one of the above currencies, use the ISO 2417 code.
+        type: str
+    due_date:
+      prompt:
+        description: date when payment is due from the customer
+        format: YYYY-mm-dd date string
+        identifiers: ["Due Date", "Pay By", "After XX/XX/XX Pay $YY", "Amount Due by XX/XX/XX", "Billing Date After"]
+        instructions: |
+          - If the statement or invoice is marked as "DO NOT PAY" or the amount due is a credit, do not include this field
+          - If the statement or invoice is "Due On Receipt":
+            - The Due Date is the same as the statement date, if you can find it
+            - Exclude this value if you cannot find the statement date
+          - This is **never** called the billing date
+          - Dates within this utility bill are **extremely unlikely** to be more than 1 year apart from each other. If you find this to be the case, consider whether you are seeing a year vs a day (e.g. 2/23 being Feb 23 instead of Feb 2023).
+        type: str
+    measurement_period_end_date:
+      prompt:
+        description: date when the statement period ends
+        format: YYYY-mm-dd date string
+        identifiers: ["To", "Billing Period", "Service Period", "Date of Service", "Reading Date", "Services through"]
+        instructions: |
+          - Exclude this value if you cannot find a clear end to the billing period
+          - The statement period end date is typically found near the header of the invoice and may be included as a date range instead of a stand alone value
+          - It **will not** be called "Next Meter Reading" or "Payment Due" or anything like that, it should be clear that it is the billing period or you should not include this value
+            - **Exception to this rule**: the "Next Meter Reading" or "Payment Due" or equivalent date is included with an explicit label such as "End Date" or "Current Read Date" or "Period Ending", in which case you should not ignore this date
+          - Some invoices and bills **do not** include a statement period. In this case:
+            - If there are meters, use the **maximum date** for **all** meters as the end date
+            - If there are no meters, do not include this value
+          - If this is an invoice or bill for a single transaction, there will be no Interval End Date because there is no interval
+          - The End Date will never be before the Start Date
+          - Dates within this utility bill are **extremely unlikely** to be more than 1 year apart from each other. If you find this to be the case, consider whether you are seeing a year vs a day (e.g. 2/23 being Feb 23 instead of Feb 2023).
+        type: str
+    measurement_period_start_date:
+      prompt:
+        description: date when the statement period began
+        format: YYYY-mm-dd date string
+        identifiers: ["From", "Billing Period", "Service Period", "Date of Service"]
+        instructions: |
+          - Exclude this value if you cannot find a clear beginning to the billing period
+          - The statement period start date is typically found near the header of the invoice and may be included as a date range instead of a stand alone value
+          - It **will not** be called "Next Meter Reading" or anything like that, it should be clear that it is the billing period or you should not include this value
+            - **Exception to this rule**: the "Next Meter Reading" or equivalent date is included with an explicit label such as "Start Date" or "Period Beginning" or "Previous Read Date", in which case you should not ignore this date
+          - Some invoices and bills **do not** include a statement period. In this case:
+            - If there are meters, use the **minimum date** for **all** meters as the start date
+            - If there are no meters, do not include this value
+          - If this is an invoice or bill for a single transaction, do not include this value because there is no billng period or interval
+          - The Start Date will never be after the End Date
+          - Dates within this utility bill are **extremely unlikely** to be more than 1 year apart from each other. If you find this to be the case, consider whether you are seeing a year vs a day (e.g. 2/23 being Feb 23 instead of Feb 2023).
+        type: str
+    invoice_number:
+      prompt:
+        description: unique identifier for the utility bill or invoice, typically found near the top of the bill, only included if you can find an explicit label
+        format: unique string, **always** formatted as a string
+        identifiers: ["Bill ID", "Statement ID", "Statement Number", "Billing Batch #", "Reference Number"]
+        instructions: |
+          - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE IDENTIFIER**
+            - Invoice Number is **never** missing a label
+          - Invoice number is **never** the same as the **account number**
+          - The invoice number will typically be found near the top of the first page, along with other account level information
+            - **Give preference to the invoice number found at the top of the first page of the invoice or bill**
+            - If the label is "Statement Number" or "Billing Batch Number", use this value over other potential invoice numbers
+          - Inspect the label associated with the invoice or statement number
+            - If you cannot find a clear label associated with the number, **do not include this value**
+          - **Valid labels** include:
+            - Statement Number
+            - Bill ID
+            - Reference Number
+            - Billing Batch Number
+          - **Invalid labels** include:
+            - Check Number (or Check #)
+            - Receipt Number (or Receipt #)
+            - Member Number (or Member #)
+            - Meter Number (or Meter #)
+            - Business Partner
+        type: str
+    provider_name:
+      prompt:
+        description: name of the utility company that issued the statement or invoice and is owed payment from the customer
+        identifiers: ["Please make checks payable to...", "Remit Payment", "Billing Party"]
+        instructions: |
+          - This is **never** the customer name, please check to ensure you do not confuse this name with the customer name
+          - This is the provider that receives payment, not necessarily the provider who issues the bill
+          - The provider name is typically found near the payment address, payment window, or "remit payment" section
+        type: str
+    recipient_name:
+      prompt:
+        description: the name of the recipient of the utility services, attached to the customer service address
+        identifiers: ["Mail To"]
+        instructions: |
+          - The recipient name is typically the first line or the beginning of the service address
+          - **Include this value** if it is:
+            - A proper name such as a person or company or municipality
+          - **Do NOT include this value** if it is:
+            - A unique identifier (e.g. "Premise 039XXX") or a generic descriptor (e.g. "SHED", "SHOP", "HOUSE")
+          - Ignore the remainder of the customer service address
+        type: str
+    service_address:
+      prompt:
+        description: the location where the utility services are consumed by the customer
+        identifiers: ["Mail To"]
+        instructions: |
+          - If you find conflicting information, follow the following priority (assuming you've found these things):
+            1. Location where the utility meters are located
+            2. Location where the customer lives
+            3. Location where the customer receives mail
+          - Strip the recipient name from the service address if it is a proper name, such as a person or company or municipality
+          - Otherwise, capture the recipient name as part of the service address
+            - You **must** capture any unique identifiers (e.g. "Premise 039XXX") or generic descriptors (e.g. "SHED", "SHOP", "HOUSE")
+          - Capture the entire remaining address including:
+            - Street number and street
+            - Descriptors
+              - Some examples include: "Garage" or "Shed" or "Shop" or "House" or "Premise 123XYZ"
+            - Apartment, suite, etc...
+            - City, State, zip code
+          - **It's critical you capture any descriptors, because they are important to the address**
+          - If a meter address is not explicitly provided, use the customer address
+        type: str
+    statement_date:
+      prompt:
+        description: date when the invoice was computed or sent to the customer
+        format: YYYY-mm-dd date string
+        identifiers: ["Invoice Date", "Billing Date", "Account Summary as of XX/XX/XXXX", "Bill Date", "Account Balance as of XX/XX/XXXX"]
+        instructions: |
+            - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE DATE**
+            - The statement date **is**:
+              - The date when the invoice was computed, created, or sent to the customer
+            - The statement date **is not**:
+              - due date
+              - meter read date **or** the meter end date
+              - statement or service period dates ("FROM" or "START")
+            - Dates within this utility bill are **extremely unlikely** to be more than 1 year apart from each other. If you find this to be the case, consider whether you are seeing a year vs a day (e.g. 2/23 being Feb 23 instead of Feb 2023).
+        type: str
+    tariff_name_as_printed:
+      prompt:
+        description: a descriptor for the rate schedule selected by the customer based on their preferences for consuming the energy provided by the utility company and paying the associated costs
+        identifiers: ["Rate", "Rate Schedule", "Billed", "Account Type", "Rate Information", "Rate Plan", "Plan", "Service Type", "Rate Class", "Charge Rate", "Rate Code"]
+        instructions: |
+          - The tariff will **never** have **charges** or **usage** or **fees** assigned to it on the invoice
+            - If you see a charge or usage or fee associated with the potential tariff, **skip it**!!
+          - The tariff is typically part of the invoice section as:
+            - The heading for the charges section of the invoice
+            - One of the subheadings for the charges section of the invoice
+            - Part of the invoice line item
+            - In a description section below the charges
+            - One of the invoice line items (usually near the top of a section)
+          - The tariff may also be part of the account information section
+          - The tariff may also be part of the meter reading itself
+          - You must capture the full tariff name, which typically include the keywords "Tariff" or "Rate"
+          - Here are some **examples** of how it **will appear** in the invoice and what you should extract:
+            - "Rate 5" >> capture the entire string "Rate 5"
+            - "Rate 5: Commercial Service" >> capture the entire string "Rate 5: Commercial Service"
+            - "Charges for Gen Serv Gas-Small Htg CHOICE - Rate 121" >> capture only the descriptor "Gen Serv Gas-Small Htg CHOICE - Rate 121"
+            - "Rate code: WCSGS         Small General Service" >> capture the entire string "Rate code: WCSGS Small General Service"
+            - "Monthly Service Charge Rate 12F" >> capture only the descriptor "Rate 12F"
+            - "Plan: Fixed" >> capture only the descriptor "Fixed"
+            - "Service Type: Commercial City" >> capture only the descriptor "Commercial City"
+            - "RATE: Sm Gen Svc (Metered)" >> capture the entire string "RATE: Sm Gen Svc (Metered)"
+            - "Current Charges (Schedule B-14-General Service)" >> capture only the descriptor "Schedule B-14-General Service"
+            - "ELECTRICAL CHARGES - General Service (E75 Rate)" >> capture only the descriptor "General Service (E75 Rate)"
+            - "Tariff 222 - General Service 02/21/25" >> capture only the descriptor and **not** the date "Tariff 222 - General Service"
+            - "Current Lighting Service - Outdoor Lighting Svc - Non Govt, Regulated" >> capture only the descriptor "Outdoor Lighting Svc - Non Govt, Regulated"
+            - "Water Commercial" or "Sewer Billed Commercial" >> capture only the descriptor "Commercial"
+            - "Account Type: Small Commercial" >> capture only the descriptor "Small Commercial" or "Commercial"
+            - "Distributlon: Tarlf D, - Service général décision D-2024-113" >> capture only the descriptor "Tarlf D, - Service général décision D-2024-113"
+            - "Your current rate is Small General Service - No Demand (SGS)." >> capture only the descriptor "Small General Service - No Demand (SGS)"
+            - "Point of Delivery: 10564607        General Service Urban Energy" >> capture only the descriptor "General Service Urban Energy"
+            - "Bill details: Small commercial" >> capture only the descriptor "Small Commercial"
+            - "Rate Class: Non-Res. (35)" >> capture the entire string "Rate Class: Non-Res. (35)"
+            - "Rate Information: Gas Gen Serv Rate GS-1 - Com Cust Choice Rate: 277" >> capture the entire string "Rate Information: Gas Gen Serv Rate GS-1 - Com Cust Choice Rate: 277"
+          - Here are some **examples** of how it **will not appear** in the invoice and what you should extract:
+            - "US Tariff" >> this is a general descriptor for tariffs and not a rate schedule for the customer
+            - "Canadian Tariff" >> this is a general descriptor for tariffs and not a rate schedule for the customer
+        type: str
+
+meters:
+  prompt:
+    instructions: |
+      A meter is a total measurement of a utility service, charged by a utility provider, over some service period (a time period with a beginning and end). A meter has a clearly labelled meter number and an explicit description of the service usage by the customer.
+
+      A meter **is not** an average or cumulative or some other type of measurement that **does not** represent **total usage over a period of time**.
+
+      Meter usage is a measurement of usage of a utility service by a utility provider. It is **never** represented as a currency amount.
+
+      ## Unique Meter Definition
+
+      Unique meters **always** match **all three** of the following criteria:
+
+      1. Must have **at least one** of the following:
+        - a **total** usage measurement
+          - usage measurement cannot be 0
+        - meter fees or charges line item(s) on the invoice
+          - meter fees or charges cannot be 0
+          - taxes (TX) and surcharges (SURCHG) do not indicate a unique meter but should be combined with the unique meter
+
+      2. Must be a clearly identified **service type**
+        - follow the guidelines for the Service Type field described below
+
+      3. Must have **at least one** of the following:
+        - a **clearly labelled unique meter number**, not shared with any other meter readings
+        - the **same meter number** as other meter readings **but** a **unique service period start and/or end date**
+        - a **unique service period start and/or end date**
+        - a **clearly labeled** "Pod ID" **and** a service address
+          - a meter **with** a "Pod ID" and **without** a meter ID is considered a meter **without a meter number**
+          - "Pod ID" is an indicator of a unique meter but **is not** a meter ID
+        - a **unique** service provider
+          - If there are multiple service providers charging for the same meter service, they should each have a unique meter with shared values (e.g. usage, meter number, service type)
+
+      Each unique meter should be treated as a separate meter object and included as unique objects inside a JSON array.
+
+      Definitions for the usage, service type, meter number, period start and end dates, and service address can be found below.
+
+      ### Special Cases
+
+      1. When a clearly labelled **unique water meter** exists, you must create **an extra unique meter object** in the following cases:
+        - for each charge or fee related to fireline, hydrant, fire hydrant, fire protection or other fire-related charges
+          - use the service type "water"
+          - set charges to the total fees and charges associated with the fire related service
+          - set meter number, usage, and unit of measurement to null
+          - all other values should be cloned from the parent water meter including dates and service address
+        - for each charge or fee related to sewer (be sure it is not a tax e.g. UTX)
+          - use the service type "sewer"
+          - set the usage value equal to the water usage
+          - set charges to the total fees and charges associated with sewer
+          - you **must** copy the meter number from the parent water meter
+          - all other values should be cloned from the parent water meter including the dates, unit of measurement, and service address
+
+      2. When a clearly labelled **unique electic meter** exists:
+        - you must create an **an extra unique lighting meter object** in the following cases:
+          - there is a fee or charge with the label or description containing "lighting" and **at least one** of the following:
+            - the fee or charge includes abbreviations related to lighting such as "STRLHT"
+            - the fee or charge includes keywords describing the type of bulb (e.g. watt, HPS, sodium, metal-halide, sentinel)
+            - the fee or charge includes keywords describing an electric pole (but **not** cable or power supply poles)
+        - when you create unique meters, you must:
+          - set charges to the charges or fees related to the lighting service
+          - set the meter number to null
+          - uses the service type "lighting"
+          - set other meter attributes according to the guidelines provided for the fields below
+
+      3. When **sanitation service charges exist** **and** a meter **service address** can be found, you must create a unique meter object:
+        - for **every unique sanitation charge**, **create a unique meter object**
+          - a sanitation charge includes keywords such as "waste", "trash", "dumpsters", "landfill", "garbage", or "dumpster containers", etc...
+          - a sanitation charge **does not** include keywords like "fuel surcharge"
+          - a sanitation charge **cannot** be 0
+        - set the meter period start **and** end date to the date the charge was created
+          - set the meter period start **and** end date to null if this cannot be found
+          - the meter period start and end date will be equal
+        - set meter number to null
+
+      4. When a **unique meter** exists **and** a you **identify** an **additional passthrough service provider name**:
+        - you **must duplicate** the **existing unique meter** to create **an extra unique meter** for the passthrough provider, with the following changes:
+          - set the provider name to the additional passthrough provider name
+          - set the additional provider name to null
+          - set the additional provider account number to null
+          - if explicitly described in the invoice, deconstruct the charges so that:
+            - the new additional passthrough provider meter charges are unique to the passthrough provider
+            - the existing unique meter charges are updated to deduct any charges attributed to the passthrough provider
+          - all other values should be cloned from the existing unique meter including the usage and meter number
+        - you must update the **existing unique meter** with the following changes:
+          - ensure the additional provider name is set to the additional passthrough provider name
+            - this field **must** be populated
+          - if an additional passthrough provider account number is known, ensure the additional passthrough provider account number is set
+            - this field **must** be populated if the additional passthrough provider account number is known
+          - if explicitly described in the invoice, deconstruct the charges so that:
+            - the new additional passthrough provider meter charges are unique to the passthrough provider
+            - the existing unique meter charges are updated to deduct any charges attributed to the passthrough provider
+  fields:
+    pass_through_provider_account_number:
+      prompt:
+        description: unique identifier for the customer with the additional provider, is null for passthrough provider meters
+        format: unique string, **always** formatted as a string
+        identifiers: ["Account ID"]
+        instructions: |
+          - If this is an **additional passthrough provider meter**, **exclude this value**
+          - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE IDENTIFIER**
+          - The label will **never** be "ESI Number" or "Utility Number" or "Statement Number" or anything like that
+          - Use your best judgement to **capture the entire value**
+            - Some account numbers include hyphens, periods, or spaces. Be sure to capture the entire identifier including hyphens, periods, and spaces.
+          - If this is the **main service meter** **and** there is an additional passthrough provider meter **and** you can find an additional passthrough provider account number, this value **must absolutely be populated**
+        type: str
+    pass_through_provider_name:
+      prompt:
+        description: other utility service providers associated with utility service charges (e.g. passthrough fees, usage under the primary meter, or other "pass through" services and charges)
+        identifiers: ["Passthrough Fees", "Associated Charges", "Supporting Services", "You are buying your service from", "Delivery", "Supply"]
+        instructions: |
+          - If this is an **additional passthrough provider meter**, **exclude this value**
+          - If this is the **main service meter** **and** there is an additional passthrough provider meter, this value **must absolutely be populated**
+          - Additional service providers, sometimes called passthrough service providers, will typically appear in the invoice section of the bill
+            - The provider reference could be a line item, or in the description or heading
+          - These additional providers are likely to be associated with **electricity** or **natural gas** or **both** services
+          - These additional providers will **not** be the utility company that issued the statement or invoice
+        type: str
+    meter_number:
+      prompt:
+        description: unique identifier for the meter that made the utility service measurement
+        format: unique string, **always** formatted as a string
+        identifiers: ["Meter #", "Meter ID", "Premises Number"]
+        instructions: |
+          You must follow the following process to determine if you have found a valid meter number:
+
+            1. Locate the label for the number you think is a meter number
+              - Meter Number is **never** missing a label
+              - The label for Meter Number can often be found in a column header above the number
+              - If the label does not have "meter" or some synonym for "meter" in the label, ignore this number
+
+            2. If you cannot find a clear label associated with the number, this is not a meter number and you should ignore it
+              - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT, VALID LABEL NEAR THE IDENTIFIER**
+
+            3. Determine if the label is a valid meter number label
+              - If the label does not have "meter" or some synonym for "meter" in the label, ignore this number
+              - Examples of **valid meter labels** include:
+                - Meter Number, Meter ID
+              - Examples of **invalid meter labels** include:
+                - Unmetered, CURR READ, Unknown, Readings, Used, Code, Amount, Prev, Previous, Pres, Present, SERVE AT, Service Agreement, RATE CODE, Pod ID, Prior Read, Current Read, Usage
+
+            4. Evaluate whether the meter number is valid
+              - The value for the meter number **will never be**:
+                - METER, METER NUMBER
+              - The meter number value **will always be** an alpha numeric strict or serial number
+              - The meter number value **will never be** words or sentences or phrases
+              - Meter number is **never** the account, customer, service, or invoice number
+
+            5. Double check that you **are not** confusing the meter number with the **meter usage readings**
+              - **IT IS CRITICAL THAT YOU DO NOT CONFUSE METER NUMBERS WITH METER USAGE READINGS!!!**
+        required: true
+        type: str
+    measurement_period_end_date:
+      prompt:
+        description: date when the meter was read to end the period
+        format: YYYY-mm-dd date string
+        identifiers: ["Meter Period", "Reading Date", "Present", "Current", "Meter Read Date"]
+        instructions: |
+          For every meter service type except sanitation:
+            - This date represents when the meter was read to end the current period
+              - A meter reading represents the difference between a reading at the start and end of the current period
+            - This date should **always** be clearly associated with a specific meter number
+            - **Exclude this value** if you cannot find a clear meter reading date to end the measurement period
+            - **Exclude this value** if it is associated with the following **labels**:
+              - "Bill Date", or anything like that
+            - If there is a meter read date, it is the period end date and **not** the period start date and you should include it
+            - The start date and end date **should not be** the same
+              - Sanitation meters are the **only** exception to this rule
+            - The end date will **never** be before the start date
+            - **Include** this value if you **can** determine it represents the final meter reading for the meter measurement period
+            - Dates within this utility bill are **extremely unlikely** to be more than 1 year apart from each other. If you find this to be the case, consider whether you are seeing a year vs a day (e.g. 2/23 being Feb 23 instead of Feb 2023).
+          For santiation meters:
+            - This date represents when the sanitation charge was invoiced
+            - This date should be equal to the start date
+            - **Exclude this value** if you cannot find a clear date associated with the sanitation charge
+        required: true
+        type: str
+    measurement_period_start_date:
+      prompt:
+        description: date when the meter was read to start the period
+        format: YYYY-mm-dd date string
+        identifiers: ["Meter Period", "Reading Date", "Previous"]
+        instructions: |
+          For every meter service type except sanitation:
+            - This date represents when the meter was read to start the current period
+              - A meter reading represents the difference between a reading at the start and end of the current period
+            - **Exclude this value** if you cannot find a clear meter reading date to start the measurement period
+            - **Exclude this value** if it is associated with the following **labels**:
+              - "Reading Date" or "Meter Read Date" or anything like that
+                - **Exception to this rule**: there is also an explicit label such as "Start Date" or "Period Beginning" or "Previous", in which case you **should not** ignore this date
+              - "Bill Date", or anything like that
+            - **Exclude this value** if there is **only** a single meter read date
+            - **Include** this value if you **can** determine the initial meter reading date based on explicit labels
+            - The start date and end date **should not be** the same
+              - Sanitation meters are the **only** exception to this rule
+            - The start date will **never** be after the end date
+            - Dates within this utility bill are **extremely unlikely** to be more than 1 year apart from each other. If you find this to be the case, consider whether you are seeing a year vs a day (e.g. 2/23 being Feb 23 instead of Feb 2023)
+          For santiation meters:
+            - This date represents when the sanitation charge was invoiced
+            - This date should be equal to the end date
+            - **Exclude this value** if you cannot find a clear date associated with the sanitation charge
+        required: true
+        type: str
+    power_factor_percentage:
+      prompt:
+        description: ratio of real power (kilowatts) to apparent power (kilovolt-amperes) for any given load and time, with a value between 0.0 and 1.0
+        identifiers: ["Power Factor"]
+        instructions: |
+          - Exclude this value if the service type **is not** electric
+          - Exclude this value if it is associated with the label "Adjusted Factor"
+          - Power Factor = Useful (or True) Power (kW) / Total (or Apparent) Power (kVA)
+            - Apparent Power: Measured in kVA
+            - Useful Power: Measured in kW
+        type: ["int", "float"]
+    provider_name:
+      prompt:
+        description: name of the utility company that issued the statement or invoice and is owed payment from the customer
+        identifiers: ["Please make checks payable to...", "Remit Payment", "Billing Party"]
+        instructions: |
+          - This is **never** the customer name, please check to ensure you do not confuse this name with the customer name
+          - This is the provider that receives payment, not necessarily the provider who issues the bill
+          - The provider name is typically found near the payment address, payment window, or "remit payment" section
+        type: str
+    recipient_name:
+      prompt:
+        description: the name of the recipient of the meter service, attached to the meter service address
+        identifiers: ["Mail To"]
+        instructions: |
+          - The recipient name is typically the first line or the beginning of the service address
+          - **Include this value** if it is:
+            - A proper name such as a person or company or municipality
+          - **Do NOT include this value** if it is:
+            - A unique identifier (e.g. "Premise 039XXX") or a generic descriptor (e.g. "SHED", "SHOP", "HOUSE")
+          - Ignore the remainder of the meter service address
+        type: str
+    service_address:
+      prompt:
+        description: the location where the meter service is consumed and the meter is located
+        identifiers: ["Premises Identifier", "Premises Descriptor"]
+        instructions: |
+          - Strip the recipient name from the service address if it is a proper name, such as a person or company or municipality
+          - Otherwise, capture the recipient name as part of the service address
+            - You **must** capture any unique identifiers (e.g. "Premise 039XXX") or generic descriptors (e.g. "SHED", "SHOP", "HOUSE")
+          - Capture the entire remaining address including:
+            - Street number and street
+            - Descriptors
+              - Some examples include: "Garage" or "Shed" or "Shop" or "House" or "Premise 123XYZ"
+            - Apartment, suite, etc...
+            - City, State, zip code
+          - **It's critical you capture any descriptors, because they are important to the address**
+          - If a meter address is not explicitly provided, use the customer address
+        type: str
+    service_type:
+      prompt:
+        default: other_service_type
+        description: enumerated type of utility service associated with the meter
+        format: enumerated value
+        identifiers: ["Service"]
+        instructions: |
+          - Services are sometimes labeled with a code instead of the full name. Here are some common codes:
+            - WA: water
+            - SW: sewer
+
+          ### Service Type - Enumerated Values
+
+          You must classify each meter service as one of the following enumerated values:
+
+          - **cellular_phone**: includes keywords like "texting", "data plan", or "mobile internet"
+          - **chilled_water**: these are particularly important to extract from Hyatt invoices
+          - **district_cooling**
+          - **district_heat**
+          - **electric**: typically include the type of bulb or wattage (e.g. watt, HPS, sodium, metal-halide, sentinel)
+          - **fuel_oil**: heating oils, diesel, etc...
+          - **internet**: include data signals; delivered via cable, fiber, or satellite
+          - **irrigation**: irrigation and sprinkler-related services, including 'Irr' and 'Spkrl' or other short hand abbreviations for sprinkler services
+          - **landline_phone**: includes keywords like "long distance"
+          - **lighting**: accompanies electric meters with keywords describing the type of bulb or the type of electric pole or lighting (e.g. "STRLHT")
+          - **natural_gas**: typically measured in MCF or CCF, which should be converted into therms or decatherms if possible
+          - **propane**: typically measured in therms, gallons, LBS, CF, or L
+          - **sanitation**: includes keywords such as "waste", "trash", "dumpsters", "landfill", "garbage", or "dumpster containers", etc...
+          - **sewer**: must include the keyword "sewer" or something similar
+          - **steam**
+          - **television**: includes analog signals, or digital signals; delivered via legacy Cable, Satellite, or Internet
+          - **water**: must include the keyword of "water" or something similar and typically has units of gallons, CGAL, CCF, MCF, KGAL, HGAL, TGAL
+            - there is **only 1** water meter per unique water meter number **OR** unique usage measurement
+
+          - **other_service_type**: if you **are not certain**, use this type
+
+          Fireline, fire protection services, hydrant, or other fire-related meters should be mapped to `water`.
+
+          Stormwater is **not** a meter and should be ignored.
+        type: str
+    tariff_name_as_printed:
+      prompt:
+        description: a descriptor for the rate schedule selected by the customer based on their preferences for consuming the energy provided by the utility company and paying the associated costs
+        identifiers: ["Rate", "Rate Schedule", "Billed", "Account Type", "Rate Information", "Rate Plan", "Plan", "Service Type", "Rate Class", "Charge Rate", "Rate Code"]
+        instructions: |
+          - The tariff will **never** have **charges** or **usage** or **fees** assigned to it on the invoice
+            - If you see a charge or usage or fee associated with the potential tariff, **skip it**!!
+          - The tariff is typically part of the invoice section as:
+            - The heading for the charges section of the invoice
+            - One of the subheadings for the charges section of the invoice
+            - Part of the invoice line item
+            - In a description section below the charges
+            - One of the invoice line items (usually near the top of a section)
+          - The tariff may also be part of the account information section
+          - The tariff may also be part of the meter reading itself
+          - You must capture the full tariff name, which typically include the keywords "Tariff" or "Rate"
+          - Here are some **examples** of how it **will appear** in the invoice and what you should extract:
+            - "Rate 5" >> capture the entire string "Rate 5"
+            - "Rate 5: Commercial Service" >> capture the entire string "Rate 5: Commercial Service"
+            - "Charges for Gen Serv Gas-Small Htg CHOICE - Rate 121" >> capture only the descriptor "Gen Serv Gas-Small Htg CHOICE - Rate 121"
+            - "Rate code: WCSGS         Small General Service" >> capture the entire string "Rate code: WCSGS Small General Service"
+            - "Monthly Service Charge Rate 12F" >> capture only the descriptor "Rate 12F"
+            - "Plan: Fixed" >> capture only the descriptor "Fixed"
+            - "Service Type: Commercial City" >> capture only the descriptor "Commercial City"
+            - "RATE: Sm Gen Svc (Metered)" >> capture the entire string "RATE: Sm Gen Svc (Metered)"
+            - "Current Charges (Schedule B-14-General Service)" >> capture only the descriptor "Schedule B-14-General Service"
+            - "ELECTRICAL CHARGES - General Service (E75 Rate)" >> capture only the descriptor "General Service (E75 Rate)"
+            - "Tariff 222 - General Service 02/21/25" >> capture only the descriptor and **not** the date "Tariff 222 - General Service"
+            - "Current Lighting Service - Outdoor Lighting Svc - Non Govt, Regulated" >> capture only the descriptor "Outdoor Lighting Svc - Non Govt, Regulated"
+            - "Water Commercial" or "Sewer Billed Commercial" >> capture only the descriptor "Commercial"
+            - "Account Type: Small Commercial" >> capture only the descriptor "Small Commercial" or "Commercial"
+            - "Distributlon: Tarlf D, - Service général décision D-2024-113" >> capture only the descriptor "Tarlf D, - Service général décision D-2024-113"
+            - "Your current rate is Small General Service - No Demand (SGS)." >> capture only the descriptor "Small General Service - No Demand (SGS)"
+            - "Point of Delivery: 10564607        General Service Urban Energy" >> capture only the descriptor "General Service Urban Energy"
+            - "Bill details: Small commercial" >> capture only the descriptor "Small Commercial"
+            - "Rate Class: Non-Res. (35)" >> capture the entire string "Rate Class: Non-Res. (35)"
+            - "Rate Information: Gas Gen Serv Rate GS-1 - Com Cust Choice Rate: 277" >> capture the entire string "Rate Information: Gas Gen Serv Rate GS-1 - Com Cust Choice Rate: 277"
+          - Here are some **examples** of how it **will not appear** in the invoice and what you should extract:
+            - "US Tariff" >> this is a general descriptor for tariffs and not a rate schedule for the customer
+            - "Canadian Tariff" >> this is a general descriptor for tariffs and not a rate schedule for the customer
+        type: str
+    units_of_measurement:
+      prompt:
+        description: enumerated usage unit of measurement for the meter
+        format: enumerated value
+        identifiers: ["kWh", "kW", "therms", "decatherms", "joules", "btu", "MBTU", "MMBTU", "gallons", "DGAL", "CGAL", "HGAL", "KGAL", "TGAL", "CF", "DCF", "HCF", "CCF", "MCF", "tons", "mlbs"]
+        instructions: |
+          - **DO NOT INCLUDE THIS VALUE IF IT IS NOT EXPLICITLY STATED**
+            - **Do not make assumptions** about what the usage unit of measurement is
+            - **Only include this value if you see an explicit unit of measurement in the bill!!!**
+          - Unit of measurement may appear as a line item description on the invoice and not necessarily as part of the meter
+            - e.g. "per ton" or "per cubic feet" etc...
+          - If the charge has a word that indicates the usage is deducted such as: "DEDUCT" or "CREDIT":
+            - Set the Unit of Measurement to "deduct"
+          - If a consumption unit conversion is provided, such as:
+            - '1 unit = 748 gallons','a unit of water is 748 gallons' etc. → extract the unit as 'CCF'
+
+          ### Unit of Measurement - Enumerated Values
+
+          You must convert whatever units of measurement you find in the invoice into a valid enumerated value. If you cannot find an appropriate enumerated value, use the original value.
+
+          Here are enumerated values for the following service types:
+
+          #### Sanitation
+
+          ```json
+          [ "klbs", "mlbs", "Sm3", "Yard", "lbs", "cubic_yard", "tons", "kg", "tonne", "metric_ton" ]
+          ```
+
+          #### Water & Sewer
+
+          ```json
+          [ "kL", "gallons", "DGAL", "CGAL", "HGAL", "KGAL", "TGAL", "MGAL", "XGAL", "TTGAL", "IGAL", "DCGAL", "MGD", "CF", "DCF", "HCF", "kcf", "TCF", "square_feet", "Residential_cooling_hecta_liters", "l", "ccf", "MCF" ]
+          ```
+
+          If units are `1000 gallons` or `thousand gallons` or `thous. gal.`, use `TGAL`. Apply this same logic to `HGAL`, `MGAL`, `XGAL`, etc...
+          If units are `100 cubic feet`, use HCF. Appl this same logic to `DCF`, `KCF`, etc...
+          If units are `cu. ft.` or `cubic feet`, use CF.
+
+          #### Natural Gas
+
+          Convert MCF and CCF into into therms or decatherms, if possible. If not possible, use MCF or CCF.
+
+          DTH is not a valid unit. It should be "decatherms".
+
+          ```json
+          [ "therms", "decatherms", "MMBTU", "MBTU", "btu", "Nm3", "Nm3/h", "m3/h", "cubic_meters", "thousand_cubic_meters", "ccf", "MCF" ]
+          ```
+
+          #### Electric
+
+          ```json
+          [ "kW", "kWh", "kWh/h", "kV", "kVA", "kVAh", "kVAR", "kVARH", "MVARh", "joules", "kilo_joules", "giga_joules", "mega_joules", "MW", "MWH", "GW", "GWH", "Wh", "Watt", "horsepower", "volts", "amps" ]
+          ```
+
+          #### Miscellaneous
+
+          ```json
+          [ "kQ", "kQh", "EA", "Days", "unit", "N/A", "power_factor", "tons_per_hour", "ton_hour", "ton_month", "equivalent_residential_unit", "acre_feet" ]
+          ```
+        type: str
+    usage_value:
+      prompt:
+        description: numerical value representing the meter usage for the period, never a currency and always the final or corrected or adjusted value and not the raw value
+        identifiers: ["Readings", "Used", "Actual"]
+        instructions: |
+          - **DO NOT INCLUDE THIS VALUE IF YOU CANNOT FIND AN EXPLICIT LABEL NEAR THE VALUE**, except in the following cases:
+            - A sewer meter inherits its usage value from the water meter
+          - This value **is** the **total service usage** that the customer was charged for the period
+            - If there is an **actual** or **adjusted** or **corrected** value, **use this value**
+          - This value **is not** the average or cumulative or a subtotal
+          - This value is **never** a currency or charge
+            - Exclude this value if you determine it represents a currency amount
+          - The following service types have special handling for usage:
+            - sanitation has no usage value
+            - fire-related charges have no usage value
+        type: ["int", "float"]
