@@ -17,10 +17,10 @@ import sys
 import time
 from pathlib import Path
 
-from src.validator import validate_yaml_schema
-from src.core.models import ValidationResult, ERROR_CODE_DESCRIPTIONS
-from src.core.exceptions import ProfileNotFoundError
-from src.profiles import get_available_profiles
+from yaml_validator.validator import validate_yaml_schema
+from yaml_validator.models.validation_result import ValidationResult, ERROR_CODE_DESCRIPTIONS
+from yaml_validator.exceptions import ProfileNotFoundError
+from yaml_validator.profiles import get_available_profiles
 
 
 def print_result_text(result: ValidationResult, verbose: bool = False) -> None:
@@ -57,7 +57,7 @@ def print_result_text(result: ValidationResult, verbose: bool = False) -> None:
 
 def print_result_rich(result: ValidationResult, yaml_text: str = None, verbose: bool = False) -> None:
     """Print validation result with rich formatting."""
-    from src.output import RichFormatter
+    from yaml_validator.output import RichFormatter
     formatter = RichFormatter()
     formatter.print_result(result, yaml_text, verbose)
 
@@ -65,7 +65,7 @@ def print_result_rich(result: ValidationResult, yaml_text: str = None, verbose: 
 def print_rules_list() -> None:
     """Print all available rules."""
     try:
-        from src.output import RichFormatter
+        from yaml_validator.output import RichFormatter
         formatter = RichFormatter()
         
         rules = []
@@ -99,7 +99,7 @@ def print_rules_list() -> None:
 
 def run_fix(yaml_text: str, issues: list, output_path: Path) -> int:
     """Run auto-fix and save result."""
-    from src.fixer import AutoFixer
+    from yaml_validator.fixer import AutoFixer
     from rich.console import Console
     
     console = Console()
@@ -136,7 +136,7 @@ def run_fix(yaml_text: str, issues: list, output_path: Path) -> int:
 
 def run_fix_tabs(yaml_text: str, file_path: Path) -> int:
     """Fix tabs only and save in place."""
-    from src.fixer import AutoFixer
+    from yaml_validator.fixer import AutoFixer
     from rich.console import Console
     
     console = Console()
@@ -157,7 +157,7 @@ def run_fix_tabs(yaml_text: str, file_path: Path) -> int:
 
 def run_fix_indent(yaml_text: str, file_path: Path) -> int:
     """Fix tabs and normalize indentation, save in place."""
-    from src.fixer import AutoFixer
+    from yaml_validator.fixer import AutoFixer
     from rich.console import Console
     
     console = Console()
@@ -178,7 +178,7 @@ def run_fix_indent(yaml_text: str, file_path: Path) -> int:
 
 def run_wizard(profile: str = None) -> int:
     """Run interactive schema wizard."""
-    from src.wizard import run_wizard as wizard_run
+    from yaml_validator.wizard import run_wizard as wizard_run
     from rich.console import Console
     from rich.prompt import Confirm
     
@@ -196,7 +196,7 @@ def run_wizard(profile: str = None) -> int:
 
 def generate_html_report(result: ValidationResult, yaml_text: str, output_path: str, filename: str, profile: str) -> None:
     """Generate and save HTML report."""
-    from src.output import ReportGenerator
+    from yaml_validator.output import ReportGenerator
     generator = ReportGenerator()
     generator.save(result, output_path, yaml_text, filename, profile)
     print(f"📊 Report saved to: {output_path}")

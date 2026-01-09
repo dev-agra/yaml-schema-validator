@@ -11,6 +11,7 @@ dependencies = [
     "pydantic>=2.5.0",
     "ruamel.yaml>=0.18.0",
     "pyyaml>=6.0",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -27,10 +28,10 @@ py-modules = ["main"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["yaml_validator*"]
 
 [tool.setuptools.package-data]
-src = ["profiles/configs/*.yaml"]
+yaml_validator = ["profiles/configs/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
